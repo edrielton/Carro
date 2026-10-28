@@ -30,7 +30,7 @@
   ];
 
   let scene, camera, renderer, playerCar, playerDriver, roadLines, skyline, ambientLight, sunLight;
-  let trafficCars = [], streetLights = [], sparkParticles = [], fogParticles = [], rainParticles = []; 
+  let trafficCars = [], streetLights = [], sparkParticles = [], fogParticles = [], rainParticles = [];
   let ambulance = null, hospitalBuilding = null, rescueTimer = 0;
   let medics = [], stretcher = null, patient = null, sirenPulse = 0;
   let currentLane = 1, targetX = 0, speed = 0, score = 0, crashSpeedKmh = 0, credits = 0;
@@ -491,27 +491,38 @@
       medic.rotation.y = Math.sin(phase) * 0.4;
     });
 
+    if (playerDriver) {
+      playerDriver.visible = true;
+      if (rescueState === 1) {
+        playerDriver.position.set(playerCar.position.x, 0.38, playerCar.position.z + 1.4);
+      } else if (rescueState === 2) {
+        playerDriver.position.lerp(new THREE.Vector3(playerCar.position.x, 0.38, playerCar.position.z + 1.5), 0.14);
+      } else if (rescueState >= 3) {
+        const stretcherTarget = new THREE.Vector3(playerCar.position.x, 0.38, playerCar.position.z + 1.2);
+        playerDriver.position.lerp(stretcherTarget, 0.12);
+        if (stretcher) {
+          stretcher.visible = true;
+          stretcher.position.lerp(stretcherTarget.clone().add(new THREE.Vector3(0, -0.1, 0.7)), 0.12);
+        }
+        if (patient) {
+          patient.visible = true;
+          patient.position.set(stretcherTarget.x, 0.8, stretcherTarget.z + 0.25);
+          patient.rotation.y = Math.PI / 2;
+        }
+      }
+      if (rescueState === 4) {
+        const loadPosition = ambulance.position.clone().add(new THREE.Vector3(0, 1.15, 1.1));
+        playerDriver.position.lerp(loadPosition, 0.12);
+      }
+    }
+
     if (rescueState === 2) {
       medics[0].position.lerp(new THREE.Vector3(playerCar.position.x - 0.9, 0.9, playerCar.position.z + 1.3), 0.08);
       medics[1].position.lerp(new THREE.Vector3(playerCar.position.x, 0.9, playerCar.position.z + 1.8), 0.08);
       medics[2].position.lerp(new THREE.Vector3(playerCar.position.x + 0.9, 0.9, playerCar.position.z + 0.8), 0.08);
     }
 
-    if (rescueState >= 3) {
-      const stretcherTarget = new THREE.Vector3(playerCar.position.x, 0.25, playerCar.position.z + 1.3);
-      if (stretcher) {
-        stretcher.visible = true;
-        stretcher.position.lerp(stretcherTarget, 0.12);
-        stretcher.rotation.y = Math.sin(elapsed * 3) * 0.15;
-      }
-      if (patient) {
-        patient.visible = true;
-        patient.position.set(stretcherTarget.x, 0.8, stretcherTarget.z + 0.2);
-        patient.rotation.y = Math.PI / 2;
-      }
-    }
-
-    if (rescueState === 4) {
+    if (rescueState === 4 && ambulance) {
       if (stretcher) {
         stretcher.position.x = ambulance.position.x;
         stretcher.position.z = ambulance.position.z + 1.5;
@@ -531,10 +542,11 @@
     playSound('crash');
     createSparks(playerCar.position);
     playerCar.rotation.z = 0.18; playerCar.rotation.x = -0.08;
+    playerCar.visible = false;
     if (playerDriver) {
       playerDriver.visible = true;
-      playerDriver.position.set(2.7, 0.2, -0.5);
-      playerDriver.rotation.z = Math.PI / 2;
+      playerDriver.position.set(playerCar.position.x, 0.35, playerCar.position.z + 1.4);
+      playerDriver.rotation.set(0, Math.PI / 2, 0.25);
     }
     if (!ambulance) {
       ambulance = createAmbulance();
@@ -593,6 +605,10 @@
         }
       } else if (rescueState === 4) {
         ambulance.position.z -= 0.8 * ratio;
+        if (playerDriver) {
+          const loadPosition = ambulance.position.clone().add(new THREE.Vector3(0, 1.15, 1.1));
+          playerDriver.position.lerp(loadPosition, 0.12);
+        }
         if (ambulance.position.z < playerCar.position.z - 25) finishGame();
       }
     }
@@ -682,6 +698,7 @@
     isPaused = false;
     gameOver = false;
     if (!playerCar) return;
+    playerCar.visible = true;
     lastFrameTime = performance.now();
   }
 
