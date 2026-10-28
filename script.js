@@ -1,6 +1,22 @@
 (() => {
   'use strict';
 
+  const STORAGE_KEY = 'neon-rush-save-v1';
+  const DEFAULT_SAVE = {
+    credits: 0,
+    bestScore: 0,
+    upgrades: { engine: 0, handling: 0, nitro: 0 },
+    selectedSkin: 'red',
+    unlockedSkins: ['red']
+  };
+  const SKINS = {
+    red: { label: 'Vermelho', color: 0xef4444 },
+    blue: { label: 'Azul', color: 0x3b82f6 },
+    green: { label: 'Verde', color: 0x22c55e },
+    gold: { label: 'Ouro', color: 0xf59e0b },
+    purple: { label: 'Roxo', color: 0xa855f7 }
+  };
+
   const $ = (id) => document.getElementById(id);
   const lanePositions = [-4.2, 0, 4.2];
   const BASE_TARGET_SPEED_KMH = 20;
@@ -14,7 +30,7 @@
   ];
 
   let scene, camera, renderer, playerCar, playerDriver, roadLines, skyline, ambientLight, sunLight;
-  let trafficCars = [], streetLights = [], sparkParticles = [], cityBlocks = [], fogParticles = [];
+  let trafficCars = [], streetLights = [], sparkParticles = [], fogParticles = [], rainParticles = [];
   let ambulance = null, hospitalBuilding = null, rescueTimer = 0;
   let currentLane = 1, targetX = 0, speed = 0, score = 0, crashSpeedKmh = 0, credits = 0;
   let isPaused = false, gameOver = false, rescueState = 0;
@@ -23,9 +39,52 @@
   let currentMaxInternalSpeed = (BASE_TARGET_SPEED_KMH / 500) * 2.6;
   let comboStreak = 0, comboMultiplier = 1, comboTimer = 0;
   let stageIndex = 0;
+  let saveData = null;
   const upgrades = { engine: 0, handling: 0, nitro: 0 };
   const isTouchDevice = matchMedia('(pointer: coarse)').matches || matchMedia('(max-width: 760px)').matches;
   const mats = {};
+
+  function loadSave() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return JSON.parse(JSON.stringify(DEFAULT_SAVE));
+      const parsed = JSON.parse(raw);
+      return {
+        ...JSON.parse(JSON.stringify(DEFAULT_SAVE)),
+        ...parsed,
+        upgrades: { ...DEFAULT_SAVE.upgrades, ...(parsed.upgrades || {}) },
+        unlockedSkins: Array.isArray(parsed.unlockedSkins) && parsed.unlockedSkins.length ? parsed.unlockedSkins : ['red']
+      };
+    } catch (_) {
+      return JSON.parse(JSON.stringify(DEFAULT_SAVE));
+    }
+  }
+
+  function persistSave() {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(saveData));
+    } catch (_) {}
+  }
+
+  function getSkinConfig(name) {
+    return SKINS[name] || SKINS.red;
+  }
+
+  function syncUpgradeStateFromSave() {
+    Object.keys(upgrades).forEach((key) => {
+      upgrades[key] = saveData.upgrades[key] || 0;
+    });
+  }
+
+  function applyPlayerCarColor() {
+    if (!playerCar) return;
+    const colorCode = getSkinConfig(saveData.selectedSkin).color;
+    playerCar.traverse((child) => {
+      if (child.material && child.material.color && child.material !== mats.glass && child.material !== mats.wheel) {
+        child.material.color = new THREE.Color(colorCode);
+      }
+    });
+  }
 
   function getOrientationMode() {
     return window.matchMedia('(orientation: landscape)').matches ? 'landscape' : 'portrait';
@@ -140,6 +199,16 @@
     return fog;
   }
 
+  function createRainDrop() {
+    const drop = new THREE.Mesh(
+      new THREE.BoxGeometry(0.05, 0.8, 0.05),
+      new THREE.MeshBasicMaterial({ color: 0x93c5fd, transparent: true, opacity: 0.55 })
+    );
+    drop.position.set((Math.random() - 0.5) * 24, 8 + Math.random() * 16, -120 + Math.random() * 280);
+    drop.userData.speed = 0.6 + Math.random() * 0.8;
+    return drop;
+  }
+
   function buildEnvironment() {
     const road = new THREE.Mesh(new THREE.PlaneGeometry(18, 1200), mats.road);
     road.rotation.x = -Math.PI / 2; road.receiveShadow = true; scene.add(road);
@@ -162,6 +231,12 @@
       cloud.position.set((Math.random() - 0.5) * 16, 2 + Math.random() * 5, -200 + i * 28);
       fogParticles.push(cloud);
       scene.add(cloud);
+    }
+
+    for (let i = 0; i < 110; i++) {
+      const drop = createRainDrop();
+      rainParticles.push(drop);
+      scene.add(drop);
     }
 
     roadLines = new THREE.Group();
@@ -487,6 +562,9 @@
     gameOver = true; isPaused = false; $('pause-ui').style.display = 'none';
     const reward = Math.max(20, Math.floor(score / 25) + comboStreak * 12);
     credits += reward;
+    saveData.credits = credits;
+    saveData.bestScore = Math.max(saveData.bestScore, Math.floor(score));
+    persistSave();
     $('final-stats').textContent = `Pontuação: ${Math.floor(score)} · Velocidade no acidente: ${crashSpeedKmh} KM/H · Créditos ganhos: ${reward}`;
     $('game-over-ui').style.display = 'flex';
     $('credits').textContent = credits.toString();
@@ -561,6 +639,24 @@
       cloud.position.x += Math.sin(elapsed + i) * 0.02;
       if (cloud.position.z > 60) cloud.position.z = -200;
     }
+
+    const isRainStage = WEATHER_STAGES[stageIndex].label === 'CHUVA';
+    if (isRainStage) {
+      for (let i = 0; i < rainParticles.length; i++) {
+        const drop = rainParticles[i];
+        drop.position.y -= drop.userData.speed * delta * 90;
+        drop.position.z += 0.8 * delta * 60;
+        if (drop.position.y < 0) {
+          drop.position.y = 12 + Math.random() * 8;
+          drop.position.x = (Math.random() - 0.5) * 24;
+          drop.position.z = -120 + Math.random() * 280;
+        }
+      }
+    } else {
+      rainParticles.forEach((drop) => {
+        drop.position.y = 18 + Math.sin(elapsed + drop.position.x) * 4;
+      });
+    }
   }
 
   function animate(now) {
@@ -606,6 +702,8 @@
           comboStreak = Math.min(comboStreak + 1, 12);
           comboTimer = 1.4;
           credits += 2 + comboStreak;
+          saveData.credits = credits;
+          persistSave();
           $('credits').textContent = credits.toString();
         }
 
@@ -698,7 +796,7 @@
     currentLane = 1; targetX = 0; speed = 0; score = 0; crashSpeedKmh = 0; rescueState = 0; rescueTimer = 0; isPaused = false; gameOver = false; elapsed = 0; targetSpeedKmh = BASE_TARGET_SPEED_KMH; comboStreak = 0; comboMultiplier = 1; comboTimer = 0; stageIndex = 0;
     $('speed').textContent = '0 KM/H'; $('score').textContent = '0';
     $('combo').textContent = 'x1.0';
-    playerCar = createCar(0xef4444, true, 'sedan'); scene.add(playerCar); createTraffic(5);
+    playerCar = createCar(getSkinConfig(saveData.selectedSkin).color, true, 'sedan'); scene.add(playerCar); createTraffic(5);
     applyWeatherStage();
     lastFrameTime = performance.now(); animationId = requestAnimationFrame(animate);
   }
@@ -712,7 +810,7 @@
   function handleKey(e) {
     const key = e.key.toLowerCase();
     if (['arrowleft', 'arrowright', ' '].includes(key)) e.preventDefault();
-    if (key === 'u') { toggleShop(); return; }
+    if (key === 'u') { toggleShop(true); return; }
     if (key === 'p' || key === 'escape') { togglePause(); return; }
     if (e.repeat || isPaused || gameOver || rescueState !== 0) return;
     if (key === 'a' || key === 'arrowleft') moveLane(-1);
@@ -735,6 +833,20 @@
       button.disabled = level >= 5;
       button.style.opacity = level >= 5 ? '0.6' : '1';
     });
+
+    document.querySelectorAll('[data-skin]').forEach((button) => {
+      const skinKey = button.dataset.skin;
+      const isSelected = saveData.selectedSkin === skinKey;
+      button.classList.toggle('selected', isSelected);
+      const isUnlocked = saveData.unlockedSkins.includes(skinKey);
+      button.disabled = false;
+      button.style.opacity = isUnlocked || isSelected ? '1' : '0.65';
+      button.title = isUnlocked ? (isSelected ? 'Selecionada' : 'Clique para usar') : `Comprar por ${getSkinPrice(skinKey)}`;
+    });
+  }
+
+  function getSkinPrice(skinKey) {
+    return { red: 0, blue: 120, green: 180, gold: 240, purple: 320 }[skinKey] || 0;
   }
 
   function toggleShop(forceOpen = null) {
@@ -743,7 +855,6 @@
     $('shop-ui').style.display = shouldOpen ? 'flex' : 'none';
     if (shouldOpen) {
       updateShopButtons();
-      $('shop-ui').focus?.();
     }
   }
 
@@ -752,12 +863,40 @@
     if (credits < cost || upgrades[type] >= 5) return;
     credits -= cost;
     upgrades[type] += 1;
+    saveData.credits = credits;
+    saveData.upgrades[type] = upgrades[type];
+    persistSave();
     updateShopButtons();
     updateHUD();
     if ($('credits')) $('credits').textContent = credits.toString();
   }
 
+  function buySkin(skinKey) {
+    if (saveData.unlockedSkins.includes(skinKey)) {
+      saveData.selectedSkin = skinKey;
+      applyPlayerCarColor();
+      persistSave();
+      updateShopButtons();
+      return;
+    }
+
+    const cost = getSkinPrice(skinKey);
+    if (credits < cost) return;
+    credits -= cost;
+    saveData.credits = credits;
+    saveData.unlockedSkins.push(skinKey);
+    saveData.selectedSkin = skinKey;
+    applyPlayerCarColor();
+    persistSave();
+    updateShopButtons();
+    updateHUD();
+  }
+
   function init() {
+    saveData = loadSave();
+    credits = saveData.credits || 0;
+    syncUpgradeStateFromSave();
+
     if (!window.THREE) {
       $('loading-message').textContent = 'Não foi possível carregar o Three.js. Verifique a conexão e recarregue.';
       return;
@@ -775,7 +914,7 @@
     scene.add(ambientLight);
     sunLight = new THREE.DirectionalLight(0x93c5fd, 1.1); sunLight.position.set(20, 40, 20); sunLight.castShadow = !isTouchDevice; sunLight.shadow.mapSize.set(512, 512); scene.add(sunLight);
 
-    makeMaterials(); buildEnvironment(); playerCar = createCar(0xef4444, true, 'sedan'); scene.add(playerCar); createTraffic(5);
+    makeMaterials(); buildEnvironment(); playerCar = createCar(getSkinConfig(saveData.selectedSkin).color, true, 'sedan'); scene.add(playerCar); createTraffic(5);
     applyWeatherStage(); updateOrientationIndicator(); updateHUD();
 
     window.addEventListener('resize', onResize, { passive: true });
@@ -791,6 +930,10 @@
     document.querySelectorAll('[data-upgrade]').forEach((button) => {
       button.addEventListener('click', () => buyUpgrade(button.dataset.upgrade));
     });
+    document.querySelectorAll('[data-skin]').forEach((button) => {
+      button.addEventListener('click', () => buySkin(button.dataset.skin));
+    });
+    updateShopButtons();
 
     let startX = null, startY = null;
     renderer.domElement.addEventListener('pointerdown', (e) => { if (e.pointerType === 'touch') { startX = e.clientX; startY = e.clientY; } }, { passive: true });
