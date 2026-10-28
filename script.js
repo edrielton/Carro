@@ -96,6 +96,7 @@
     if (!indicator) return;
     const mode = getOrientationMode();
     indicator.textContent = `ORIENTAÇÃO: ${mode === 'landscape' ? 'PAISAGEM' : 'RETRATO'}`;
+    document.body.classList.toggle('mobile-landscape', mode === 'landscape' && (window.innerWidth <= 960 || matchMedia('(pointer: coarse)').matches));
   }
 
   function updateHUD() {
@@ -464,7 +465,7 @@
       if (dist > 0 && dist < 20 && Math.abs(car.position.x - ambulance.position.x) < 2.8) {
         const preferredLane = lanePositions.indexOf(car.userData.targetX);
         const altLane = lanePositions.map((lane, idx) => ({ lane, idx })).filter(({ idx }) => idx !== preferredLane);
-        const available = altLane.filter(({ lane }) => !trafficCars.some(other => other !== car && Math.abs(other.userData.targetX - lane) < 1.2 && Math.abs(other.position.z - car.position.z) < 12));
+        const available = altLane.filter(({ lane }) => !trafficCars.some(other => other !== car && Math.abs(other.userData.targetX - lane) < 1.2 && Math.abs(other.position.z - car.position.z) < 1.8));
         if (available.length > 0) {
           const chosen = available[Math.floor(Math.random() * available.length)];
           car.userData.targetX = chosen.lane;
@@ -600,10 +601,23 @@
     });
 
     if (hospitalBuilding) hospitalBuilding.position.z += 0.18 * ratio;
-    camera.position.x = THREE.MathUtils.lerp(camera.position.x, playerCar.position.x * 0.3, 0.06 * ratio);
-    camera.position.y = getOrientationMode() === 'landscape' ? 4.2 : 5.2;
-    camera.position.z = getOrientationMode() === 'landscape' ? 9 : 11.5;
-    camera.lookAt(playerCar.position.x, 0.8, -7);
+
+    const mode = getOrientationMode();
+    const baseCameraTarget = ambulance ? ambulance.position.clone() : playerCar.position.clone();
+    const chaseOffset = ambulance
+      ? new THREE.Vector3(0, mode === 'landscape' ? 4.4 : 5.7, mode === 'landscape' ? 10.5 : 12.8)
+      : new THREE.Vector3(0, mode === 'landscape' ? 4.2 : 5.2, mode === 'landscape' ? 9 : 11.5);
+    const desiredCameraPosition = baseCameraTarget.clone().add(chaseOffset);
+    camera.position.lerp(desiredCameraPosition, 0.08 * ratio);
+    const lookTarget = ambulance
+      ? new THREE.Vector3(baseCameraTarget.x, 1.4, baseCameraTarget.z - 12)
+      : new THREE.Vector3(playerCar.position.x, 0.8, -7);
+    camera.lookAt(lookTarget);
+
+    const desiredFov = ambulance ? (mode === 'landscape' ? 52 : 58) : (window.innerWidth < 600 || mode !== 'landscape' ? 58 : 50);
+    camera.fov = THREE.MathUtils.lerp(camera.fov, desiredFov, 0.08 * ratio);
+    camera.updateProjectionMatrix();
+
     if (rescueTimer > 14 && rescueState !== 0) finishGame();
   }
 
@@ -793,7 +807,7 @@
     clearRescueActors();
     playerCar = null; ambulance = null; hospitalBuilding = null; playerDriver = null;
     $('game-over-ui').style.display = 'none'; $('pause-ui').style.display = 'none'; $('speed-lines').style.opacity = '0'; $('loading-message').style.display = 'none';
-    currentLane = 1; targetX = 0; speed = 0; score = 0; crashSpeedKmh = 0; rescueState = 0; rescueTimer = 0; isPaused = false; gameOver = false; elapsed = 0; targetSpeedKmh = BASE_TARGET_SPEED_KMH; comboStreak = 0; comboMultiplier = 1; comboTimer = 0; stageIndex = 0;
+    currentLane = 1; targetX = 0; speed = 0; score = 0; crashSpeedKmh = 0; rescueState = 0; rescueTimer = 0; isPaused = false; gameOver = false; elapsed = 0; targetSpeedKmh = BASE_TARGET_SPEED_KMH; currentMaxInternalSpeed = (BASE_TARGET_SPEED_KMH / 500) * 2.6; comboStreak = 0; comboMultiplier = 1; comboTimer = 0; stageIndex = 0; 
     $('speed').textContent = '0 KM/H'; $('score').textContent = '0';
     $('combo').textContent = 'x1.0';
     playerCar = createCar(getSkinConfig(saveData.selectedSkin).color, true, 'sedan'); scene.add(playerCar); createTraffic(5);
