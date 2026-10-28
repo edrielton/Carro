@@ -6,14 +6,12 @@ body { position: fixed; inset: 0; }
 #canvas-container { position: absolute; inset: 0; width: 100%; height: 100%; overflow: hidden; }
 #canvas-container canvas { display: block; width: 100%; height: 100%; }
 #hud { position: absolute; top: max(18px, env(safe-area-inset-top)); left: max(18px, env(safe-area-inset-left)); z-index: 10; display: flex; flex-direction: column; gap: 11px; min-width: 205px; padding: 14px 16px; border: 1px solid rgba(148,163,184,.28); border-radius: 14px; background: rgba(15,23,42,.55); backdrop-filter: blur(8px); box-shadow: 0 0 18px rgba(15,23,42,.45); }
-#hud div { color: #94a3b8; font-size: 12px; letter-spacing: 1.2px; text-transform: uppercase; }
+#hud div, .orientation-indicator { color: #94a3b8; font-size: 12px; letter-spacing: 1.2px; text-transform: uppercase; }
 #hud span { color: var(--neon); font-size: 19px; font-weight: 900; text-shadow: 0 0 10px #38bdf899; }
 button { font-family: inherit; cursor: pointer; touch-action: manipulation; }
 button:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
-.btn-bot, .btn-small { min-height: 38px; padding: 8px 10px; display: flex; align-items: center; justify-content: space-between; gap: 8px; color: #fff; background: #ef444433; border: 1px solid #ef4444; border-radius: 10px; box-shadow: 0 0 10px rgba(239,68,68,.18); font-size: 10px; font-weight: 700; letter-spacing: 1.2px; }
-.btn-bot span { font-size: 10px !important; color: inherit !important; text-shadow: none !important; }
-.btn-bot.active { color: #4ade80; background: #22c55e33; border-color: #22c55e; box-shadow: 0 0 10px #22c55e4d; }
-.btn-small { justify-content: center; background: #0f172acc; border-color: #475569; }
+.orientation-indicator { min-height: 18px; color: #bae6fd; }
+.btn-small { min-height: 38px; padding: 8px 10px; display: flex; align-items: center; justify-content: space-between; gap: 8px; color: #fff; background: #0f172acc; border: 1px solid #475569; border-radius: 10px; font-size: 10px; font-weight: 700; letter-spacing: 1.2px; }
 kbd { padding: 2px 5px; border: 1px solid #64748b; border-radius: 4px; }
 #speed-lines { position: absolute; inset: 0; z-index: 2; pointer-events: none; opacity: 0; box-shadow: inset 0 0 120px #38bdf84d; transition: opacity .2s; }
 .overlay { position: absolute; inset: 0; z-index: 30; display: none; flex-direction: column; justify-content: center; align-items: center; gap: 10px; padding: 24px; text-align: center; color: #fff; background: rgba(2,6,23,.58); backdrop-filter: blur(8px); }
@@ -27,10 +25,9 @@ kbd { padding: 2px 5px; border: 1px solid #64748b; border-radius: 4px; }
 #loading-message { position: absolute; z-index: 40; left: 50%; top: 50%; transform: translate(-50%, -50%); color: #7dd3fc; font-size: 12px; letter-spacing: 2px; text-align: center; }
 @media (pointer: coarse), (max-width: 760px) {
   #hud { top: max(10px, env(safe-area-inset-top)); left: max(10px, env(safe-area-inset-left)); min-width: 0; gap: 7px; padding: 10px 12px; border-radius: 9px; }
-  #hud div { font-size: 9px; letter-spacing: .7px; }
+  #hud div, .orientation-indicator { font-size: 9px; letter-spacing: .7px; }
   #hud span { font-size: 15px; }
-  .btn-bot, .btn-small { min-height: 32px; padding: 6px 8px; font-size: 9px; }
-  .btn-bot span { font-size: 9px !important; }
+  .btn-small { min-height: 32px; padding: 6px 8px; font-size: 9px; }
   #mobile-controls { display: flex; }
   #mobile-hint { display: block; }
   .overlay p { max-width: 330px; }
@@ -38,13 +35,13 @@ kbd { padding: 2px 5px; border: 1px solid #64748b; border-radius: 4px; }
 @media (max-height: 430px) and (orientation: landscape) {
   #hud { gap: 5px; padding: 7px 9px; }
   #hud span { font-size: 13px; }
-  .btn-bot, .btn-small { min-height: 27px; }
+  .btn-small { min-height: 27px; }
   #mobile-controls { right: max(15px, env(safe-area-inset-right)); bottom: max(12px, env(safe-area-inset-bottom)); }
   .control-button { width: 56px; height: 56px; }
   #mobile-hint { display: none; }
 }
 @media (hover: hover) and (pointer: fine) {
-  .btn-action, .btn-bot, .btn-small { transition: transform .16s ease, box-shadow .16s ease; }
+  .btn-action, .btn-small { transition: transform .16s ease, box-shadow .16s ease; }
   .btn-action:hover { transform: translateY(-2px) scale(1.03); box-shadow: 0 0 32px #38bdf8cc; }
-  .btn-bot:hover, .btn-small:hover { transform: scale(1.02); }
+  .btn-small:hover { transform: scale(1.02); }
 }
