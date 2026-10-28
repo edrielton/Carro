@@ -16,6 +16,7 @@
   <section id="hud" aria-label="Informações da partida">
     <div>Velocidade: <span id="speed">0 KM/H</span></div>
     <div>Pontos: <span id="score">0</span></div>
+    <div id="level-indicator" class="level-indicator">NÍVEL 1</div>
     <div id="orientation-indicator" class="orientation-indicator" aria-live="polite">ORIENTAÇÃO: RETRATO</div>
     <button id="btn-pause" class="btn-small" type="button">PAUSAR <kbd>P</kbd></button>
   </section>
@@ -25,6 +26,20 @@
     <button id="btn-right" class="control-button" type="button" aria-label="Mudar para faixa da direita">▶</button>
   </div>
   <div id="mobile-hint">TOQUE NAS SETAS PARA MUDAR DE FAIXA</div>
+
+  <div id="start-ui" class="overlay start-overlay" role="dialog" aria-modal="true" aria-labelledby="start-title">
+    <div class="start-card">
+      <p class="eyebrow">NEON RUSH</p>
+      <h1 id="start-title">CARRO 3D</h1>
+      <p>Desvie dos carros, sobreviva ao tráfego e siga em frente até a próxima leva.</p>
+      <ul class="start-list">
+        <li>Setas ou A/D para mudar de faixa</li>
+        <li>P para pausar</li>
+        <li>Velocidade cresce a cada minuto</li>
+      </ul>
+      <button id="btn-start" class="btn-action" type="button">INICIAR CORRIDA</button>
+    </div>
+  </div>
 
   <div id="pause-ui" class="overlay" role="dialog" aria-modal="true" aria-labelledby="pause-title">
     <h1 id="pause-title">JOGO PAUSADO</h1>
