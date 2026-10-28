@@ -13,13 +13,42 @@
   <div id="canvas-container" aria-label="Área do jogo 3D"></div>
   <div id="speed-lines"></div>
 
-  <section id="hud" aria-label="Informações da partida">
-    <div>Velocidade: <span id="speed">0 KM/H</span></div>
-    <div>Pontos: <span id="score">0</span></div>
+  <header id="hud" aria-label="Informações da partida">
+    <div class="hud-panel hud-panel-main">
+      <div class="hud-label">Velocidade</div>
+      <div class="hud-value" id="speed">0 KM/H</div>
+    </div>
+
+    <div class="hud-row">
+      <div class="hud-panel compact">
+        <div class="hud-label">Pontos</div>
+        <div class="hud-value" id="score">0</div>
+      </div>
+      <div class="hud-panel compact">
+        <div class="hud-label">Combo</div>
+        <div class="hud-value" id="combo">x1.0</div>
+      </div>
+    </div>
+
+    <div class="hud-row">
+      <div class="hud-panel compact">
+        <div class="hud-label">Fase</div>
+        <div class="hud-value" id="weather-indicator">CLARO</div>
+      </div>
+      <div class="hud-panel compact">
+        <div class="hud-label">Créditos</div>
+        <div class="hud-value" id="credits">0</div>
+      </div>
+    </div>
+
+    <div class="hud-row actions-row">
+      <button id="btn-shop" class="btn-small" type="button">LOJA <kbd>U</kbd></button>
+      <button id="btn-pause" class="btn-small" type="button">PAUSAR <kbd>P</kbd></button>
+    </div>
+
     <div id="level-indicator" class="level-indicator">NÍVEL 1</div>
     <div id="orientation-indicator" class="orientation-indicator" aria-live="polite">ORIENTAÇÃO: RETRATO</div>
-    <button id="btn-pause" class="btn-small" type="button">PAUSAR <kbd>P</kbd></button>
-  </section>
+  </header>
 
   <div id="mobile-controls" aria-label="Controles de direção">
     <button id="btn-left" class="control-button" type="button" aria-label="Mudar para faixa da esquerda">◀</button>
@@ -36,6 +65,7 @@
         <li>Setas ou A/D para mudar de faixa</li>
         <li>P para pausar</li>
         <li>Velocidade cresce a cada minuto</li>
+        <li>Combo e créditos crescem ao desviar do fluxo</li>
       </ul>
       <button id="btn-start" class="btn-action" type="button">INICIAR CORRIDA</button>
     </div>
@@ -51,6 +81,59 @@
     <h1 id="game-over-title">GAME OVER</h1>
     <p id="final-stats">Pontuação: 0</p>
     <button id="btn-restart" class="btn-action" type="button">JOGAR NOVAMENTE</button>
+  </div>
+
+  <div id="shop-ui" class="overlay" role="dialog" aria-modal="true" aria-labelledby="shop-title">
+    <div class="shop-card">
+      <div class="shop-header">
+        <div>
+          <p class="eyebrow">GARAGEM</p>
+          <h2 id="shop-title">UPGRADES</h2>
+        </div>
+        <button id="btn-close-shop" class="btn-icon" type="button" aria-label="Fechar loja">✕</button>
+      </div>
+
+      <div class="shop-grid">
+        <article class="upgrade-card">
+          <div class="upgrade-icon">⚙️</div>
+          <div>
+            <h3>Motor</h3>
+            <p>Mais velocidade de pico e aceleração.</p>
+          </div>
+          <div class="upgrade-meta">
+            <span>Nível <strong data-upgrade-level="engine">0</strong></span>
+            <span>120</span>
+          </div>
+          <button data-upgrade="engine" class="btn-upgrade" type="button">MEJORAR</button>
+        </article>
+
+        <article class="upgrade-card">
+          <div class="upgrade-icon">🧠</div>
+          <div>
+            <h3>Suspensão</h3>
+            <p>Controle mais preciso ao trocar de faixa.</p>
+          </div>
+          <div class="upgrade-meta">
+            <span>Nível <strong data-upgrade-level="handling">0</strong></span>
+            <span>160</span>
+          </div>
+          <button data-upgrade="handling" class="btn-upgrade" type="button">MEJORAR</button>
+        </article>
+
+        <article class="upgrade-card">
+          <div class="upgrade-icon">🚀</div>
+          <div>
+            <h3>Turbo</h3>
+            <p>Ganhos extras de potência em rajadas.</p>
+          </div>
+          <div class="upgrade-meta">
+            <span>Nível <strong data-upgrade-level="nitro">0</strong></span>
+            <span>210</span>
+          </div>
+          <button data-upgrade="nitro" class="btn-upgrade" type="button">MEJORAR</button>
+        </article>
+      </div>
+    </div>
   </div>
 
   <div id="loading-message">INICIANDO MOTOR 3D…</div>
