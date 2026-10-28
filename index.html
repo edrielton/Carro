@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#020617">
+  <title>Jogo de Carro 3D — Edição Neon</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" defer></script>
+  <script src="script.js" defer></script>
+</head>
+<body>
+  <div id="canvas-container" aria-label="Área do jogo 3D"></div>
+  <div id="speed-lines"></div>
+
+  <section id="hud" aria-label="Informações da partida">
+    <div>Velocidade: <span id="speed">0 KM/H</span></div>
+    <div>Pontos: <span id="score">0</span></div>
+    <button id="btn-toggle-bot" class="btn-bot active" type="button" aria-pressed="true">
+      PILOTO AUT.: <span id="bot-status-text">LIGADO</span>
+    </button>
+    <button id="btn-pause" class="btn-small" type="button">PAUSAR <kbd>P</kbd></button>
+  </section>
+
+  <div id="mobile-controls" aria-label="Controles de direção">
+    <button id="btn-left" class="control-button" type="button" aria-label="Mudar para faixa da esquerda">◀</button>
+    <button id="btn-right" class="control-button" type="button" aria-label="Mudar para faixa da direita">▶</button>
+  </div>
+  <div id="mobile-hint">TOQUE NAS SETAS PARA MUDAR DE FAIXA</div>
+
+  <div id="pause-ui" class="overlay" role="dialog" aria-modal="true" aria-labelledby="pause-title">
+    <h1 id="pause-title">JOGO PAUSADO</h1>
+    <p>Pressione P, ESC ou toque abaixo para continuar.</p>
+    <button id="btn-resume" class="btn-action" type="button">CONTINUAR</button>
+  </div>
+
+  <div id="game-over-ui" class="overlay" role="dialog" aria-modal="true" aria-labelledby="game-over-title">
+    <h1 id="game-over-title">GAME OVER</h1>
+    <p id="final-stats">Pontuação: 0</p>
+    <button id="btn-restart" class="btn-action" type="button">JOGAR NOVAMENTE</button>
+  </div>
+
+  <div id="loading-message">INICIANDO MOTOR 3D…</div>
+</body>
+</html>
