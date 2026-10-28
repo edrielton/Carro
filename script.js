@@ -41,6 +41,7 @@
   let comboStreak = 0, comboMultiplier = 1, comboTimer = 0;
   let stageIndex = 0;
   let saveData = null;
+  let cameraShake = 0;
   const upgrades = { engine: 0, handling: 0, nitro: 0 };
   const isTouchDevice = matchMedia('(pointer: coarse)').matches || matchMedia('(max-width: 760px)').matches;
   const mats = {};
@@ -549,6 +550,7 @@
       medics = spawned;
     }
     $('speed-lines').style.opacity = '0'; rescueTimer = 0;
+    cameraShake = 0.85;
   }
 
   function finishGame() {
@@ -603,20 +605,29 @@
     if (hospitalBuilding) hospitalBuilding.position.z += 0.18 * ratio;
 
     const mode = getOrientationMode();
-    const baseCameraTarget = ambulance ? ambulance.position.clone() : playerCar.position.clone();
-    const chaseOffset = ambulance
-      ? new THREE.Vector3(0, mode === 'landscape' ? 4.4 : 5.7, mode === 'landscape' ? 10.5 : 12.8)
+    const followTarget = ambulance ? ambulance.position.clone() : playerCar.position.clone();
+    const offset = ambulance
+      ? new THREE.Vector3(0, mode === 'landscape' ? 4.2 : 5.8, mode === 'landscape' ? 9.5 : 12.2)
       : new THREE.Vector3(0, mode === 'landscape' ? 4.2 : 5.2, mode === 'landscape' ? 9 : 11.5);
-    const desiredCameraPosition = baseCameraTarget.clone().add(chaseOffset);
+    const shakeOffset = cameraShake > 0 ? new THREE.Vector3(
+      (Math.random() - 0.5) * cameraShake,
+      (Math.random() - 0.5) * cameraShake * 0.5,
+      (Math.random() - 0.5) * cameraShake * 0.6
+    ) : new THREE.Vector3();
+    const desiredCameraPosition = followTarget.clone().add(offset).add(shakeOffset);
     camera.position.lerp(desiredCameraPosition, 0.08 * ratio);
-    const lookTarget = ambulance
-      ? new THREE.Vector3(baseCameraTarget.x, 1.4, baseCameraTarget.z - 12)
-      : new THREE.Vector3(playerCar.position.x, 0.8, -7);
+
+    const lookTarget = new THREE.Vector3(
+      ambulance ? ambulance.position.x : playerCar.position.x,
+      ambulance ? 1.2 : 0.8,
+      ambulance ? ambulance.position.z - 10 : -7
+    );
     camera.lookAt(lookTarget);
 
     const desiredFov = ambulance ? (mode === 'landscape' ? 52 : 58) : (window.innerWidth < 600 || mode !== 'landscape' ? 58 : 50);
     camera.fov = THREE.MathUtils.lerp(camera.fov, desiredFov, 0.08 * ratio);
     camera.updateProjectionMatrix();
+    cameraShake = Math.max(0, cameraShake - delta * 1.6);
 
     if (rescueTimer > 14 && rescueState !== 0) finishGame();
   }
@@ -730,7 +741,8 @@
       }
 
       const mode = getOrientationMode();
-      camera.position.x = THREE.MathUtils.lerp(camera.position.x, playerCar.position.x * 0.35, Math.min(0.1 * ratio, 1));
+      const followX = playerCar.position.x * 0.35;
+      camera.position.x = THREE.MathUtils.lerp(camera.position.x, followX, Math.min(0.1 * ratio, 1));
       camera.position.y = mode === 'landscape' ? 4.2 : 5.2;
       camera.position.z = mode === 'landscape' ? 9 : 11.5;
       camera.lookAt(playerCar.position.x, 0.8, -7);
@@ -807,7 +819,7 @@
     clearRescueActors();
     playerCar = null; ambulance = null; hospitalBuilding = null; playerDriver = null;
     $('game-over-ui').style.display = 'none'; $('pause-ui').style.display = 'none'; $('speed-lines').style.opacity = '0'; $('loading-message').style.display = 'none';
-    currentLane = 1; targetX = 0; speed = 0; score = 0; crashSpeedKmh = 0; rescueState = 0; rescueTimer = 0; isPaused = false; gameOver = false; elapsed = 0; targetSpeedKmh = BASE_TARGET_SPEED_KMH; currentMaxInternalSpeed = (BASE_TARGET_SPEED_KMH / 500) * 2.6; comboStreak = 0; comboMultiplier = 1; comboTimer = 0; stageIndex = 0; 
+    currentLane = 1; targetX = 0; speed = 0; score = 0; crashSpeedKmh = 0; rescueState = 0; rescueTimer = 0; isPaused = false; gameOver = false; elapsed = 0; targetSpeedKmh = BASE_TARGET_SPEED_KMH; currentMaxInternalSpeed = (BASE_TARGET_SPEED_KMH / 500) * 2.6; comboStreak = 0; comboMultiplier = 1; comboTimer = 0; stageIndex = 0; cameraShake = 0;
     $('speed').textContent = '0 KM/H'; $('score').textContent = '0';
     $('combo').textContent = 'x1.0';
     playerCar = createCar(getSkinConfig(saveData.selectedSkin).color, true, 'sedan'); scene.add(playerCar); createTraffic(5);
@@ -920,7 +932,7 @@
     scene = new THREE.Scene(); scene.background = new THREE.Color(0x020617); scene.fog = new THREE.Fog(0x020617, 18, 180);
     camera = new THREE.PerspectiveCamera(50, innerWidth / innerHeight, 0.1, 500);
     renderer = new THREE.WebGLRenderer({ antialias: !isTouchDevice, powerPreference: 'high-performance', precision: 'mediump' });
-    renderer.setPixelRatio(Math.min(devicePixelRatio || 1, isTouchDevice ? 1.25 : 1.5)); renderer.setSize(innerWidth, innerHeight); renderer.shadowMap.enabled = !isTouchDevice; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, isTouchDevice ? 1.25 : 1.5)); renderer.setSize(innerWidth, innerHeight); renderer.shadowMap.enabled = !isTouchDevice; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     if ('ACESFilmicToneMapping' in THREE) { renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.1; }
     container.appendChild(renderer.domElement);
 
