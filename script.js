@@ -1,19 +1,21 @@
 (() => {
   'use strict';
+
   const $ = (id) => document.getElementById(id);
   const lanePositions = [-4.2, 0, 4.2];
   const BASE_TARGET_SPEED_KMH = 20;
   const SPEED_INCREASE_PER_MINUTE_KMH = 5;
   const TARGET_SPEED_LIMIT_KMH = 120;
+
   let scene, camera, renderer, playerCar, playerDriver, roadLines, skyline;
-  let trafficCars = [], streetLights = [], sparkParticles = [], cityBlocks = [];
+  let trafficCars = [], streetLights = [], sparkParticles = [], cityBlocks = [], fogParticles = [];
   let ambulance = null, hospitalBuilding = null, rescueTimer = 0;
   let currentLane = 1, targetX = 0, speed = 0, score = 0, crashSpeedKmh = 0;
   let isPaused = false, gameOver = false, rescueState = 0;
   let lastFrameTime = 0, elapsed = 0, audioCtx = null, animationId = 0;
   let targetSpeedKmh = BASE_TARGET_SPEED_KMH;
   let currentMaxInternalSpeed = (BASE_TARGET_SPEED_KMH / 500) * 2.6;
-  let medics = [], stretcher = null, patient = null;
+  let medics = [], stretcher = null, patient = null, sirenPulse = 0;
   const isTouchDevice = matchMedia('(pointer: coarse)').matches || matchMedia('(max-width: 760px)').matches;
   const mats = {};
 
@@ -45,6 +47,7 @@
     mats.roadside = new THREE.MeshStandardMaterial({ color: 0x111827, roughness: .8 });
     mats.treeTrunk = new THREE.MeshStandardMaterial({ color: 0x4b2e2b, roughness: .9 });
     mats.treeLeaf = new THREE.MeshStandardMaterial({ color: 0x22c55e, roughness: .8 });
+    mats.windowGlow = new THREE.MeshBasicMaterial({ color: 0x7dd3fc, transparent: true, opacity: .8 });
   }
 
   function createStreetPole() {
@@ -71,12 +74,22 @@
     return g;
   }
 
+  function createFogCloud() {
+    const fog = new THREE.Mesh(
+      new THREE.SphereGeometry(2, 8, 8),
+      new THREE.MeshBasicMaterial({ color: 0x93c5fd, transparent: true, opacity: 0.08, depthWrite: false })
+    );
+    fog.userData = { drift: Math.random() * Math.PI * 2, speed: 0.2 + Math.random() * 0.6, driftX: (Math.random() - 0.5) * 3 };
+    return fog;
+  }
+
   function buildEnvironment() {
     const road = new THREE.Mesh(new THREE.PlaneGeometry(18, 1200), mats.road); road.rotation.x = -Math.PI / 2; road.receiveShadow = true; scene.add(road);
     const sidewalkMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: .8 });
     for (const x of [-12, 12]) {
       const side = new THREE.Mesh(new THREE.BoxGeometry(6, .4, 1200), sidewalkMat); side.position.set(x, -.2, 0); side.receiveShadow = true; scene.add(side);
     }
+
     skyline = new THREE.Group();
     for (let z = -540; z < 540; z += 44) {
       const left = createApartmentBlock(3.6, 10 + (z % 4) * 2.4, 4.2); left.position.set(-16, 0, z); skyline.add(left);
@@ -85,12 +98,21 @@
       const treeRight = createTree(); treeRight.position.set(9.5, 0, z + 8); skyline.add(treeRight);
     }
     scene.add(skyline);
+
+    for (let i = 0; i < 18; i++) {
+      const cloud = createFogCloud();
+      cloud.position.set((Math.random() - .5) * 16, 2 + Math.random() * 5, -200 + i * 28);
+      fogParticles.push(cloud);
+      scene.add(cloud);
+    }
+
     roadLines = new THREE.Group();
     const lineGeo = new THREE.PlaneGeometry(.12, 7);
     for (let z = -600; z < 600; z += 24) for (const x of [-2.1, 2.1]) {
       const line = new THREE.Mesh(lineGeo, mats.line); line.rotation.x = -Math.PI / 2; line.position.set(x, .025, z); roadLines.add(line);
     }
     scene.add(roadLines);
+
     for (let z = -450; z < 450; z += 70) {
       const pole = createStreetPole(); pole.position.set(-10, 0, z); scene.add(pole); streetLights.push(pole);
       const other = pole.clone(); other.position.x = 11; other.position.z = z + 16; scene.add(other); streetLights.push(other);
@@ -113,9 +135,7 @@
         osc.type = 'sine'; osc.frequency.setValueAtTime(560, now); osc.frequency.linearRampToValueAtTime(880, now + .18);
         gain.gain.setValueAtTime(.04, now); gain.gain.exponentialRampToValueAtTime(.001, now + .2); osc.start(); osc.stop(now + .2);
       }
-    } catch (_) {
-      // Audio opcional
-    }
+    } catch (_) {}
   }
 
   function box(w, h, d, material, x, y, z, parent) {
@@ -146,6 +166,7 @@
     }
     car.userData.targetX = 0;
     car.userData.desiredLane = 0;
+    car.userData.sway = Math.random() * Math.PI * 2;
     return car;
   }
 
@@ -158,6 +179,7 @@
       car.position.set(lanePositions[laneIndex], 0, z);
       car.userData.targetX = lanePositions[laneIndex];
       car.userData.desiredLane = laneIndex;
+      car.userData.speedBias = 0.8 + Math.random() * 0.7;
       scene.add(car);
       trafficCars.push(car);
     }
@@ -170,26 +192,7 @@
     car.position.set(lane, 0, Math.min(-120, furthest - (65 + Math.random() * 45)));
     car.userData.targetX = lane;
     car.userData.desiredLane = lanePositions.indexOf(lane);
-  }
-
-  function anyCarInLane(laneIndex, zMin, zMax) {
-    return trafficCars.some(car => {
-      const sameLane = Math.abs(car.userData.targetX - lanePositions[laneIndex]) < 1.2;
-      const sameRange = car.position.z < zMax && car.position.z > zMin;
-      return sameLane && sameRange;
-    });
-  }
-
-  function chooseTrafficLaneForCar(car, preferredLaneIndex) {
-    const options = lanePositions.map((lane, idx) => ({ lane, idx })).filter(({ idx }) => idx !== preferredLaneIndex);
-    const safeOptions = options.filter(({ lane, idx }) => !trafficCars.some(other => other !== car && Math.abs(other.userData.targetX - lane) < 1.2 && Math.abs(other.position.z - car.position.z) < 12));
-    if (safeOptions.length) {
-      const choice = safeOptions[Math.floor(Math.random() * safeOptions.length)];
-      car.userData.targetX = choice.lane;
-      car.userData.desiredLane = choice.idx;
-      return true;
-    }
-    return false;
+    car.userData.speedBias = 0.8 + Math.random() * 0.7;
   }
 
   function createMedic(color) {
@@ -205,7 +208,6 @@
     const leftLeg = new THREE.Mesh(legGeo, cloth); leftLeg.position.set(-.12, .35, 0); group.add(leftLeg);
     const rightLeg = new THREE.Mesh(legGeo, cloth); rightLeg.position.set(.12, .35, 0); group.add(rightLeg);
     const bag = new THREE.Mesh(new THREE.BoxGeometry(.22, .22, .18), new THREE.MeshStandardMaterial({ color: 0x0f172a })); bag.position.set(.3, .8, .32); group.add(bag);
-    group.userData.baseY = 0.8;
     group.visible = false;
     return group;
   }
@@ -252,19 +254,30 @@
     if (patient) { scene.remove(patient); patient = null; }
   }
 
+  function chooseTrafficLaneForCar(car, preferredLaneIndex) {
+    const choices = lanePositions.map((lane, idx) => ({ lane, idx })).filter(({ idx }) => idx !== preferredLaneIndex);
+    const valid = choices.filter(({ lane, idx }) => !trafficCars.some(other => other !== car && Math.abs(other.userData.targetX - lane) < 1.2 && Math.abs(other.position.z - car.position.z) < 12));
+    if (!valid.length) return false;
+    const choice = valid[Math.floor(Math.random() * valid.length)];
+    car.userData.targetX = choice.lane;
+    car.userData.desiredLane = choice.idx;
+    return true;
+  }
+
   function updateAmbulanceTrafficBehavior() {
     if (!ambulance) return;
     for (const car of trafficCars) {
       const dist = car.position.z - ambulance.position.z;
       if (dist > 0 && dist < 20 && Math.abs(car.position.x - ambulance.position.x) < 2.8) {
         const preferredLane = lanePositions.indexOf(car.userData.targetX);
-        const alternativeLane = lanePositions.map((lane, idx) => ({ lane, idx })).filter(({ idx }) => idx !== preferredLane && !trafficCars.some(other => other !== car && Math.abs(other.userData.targetX - lane) < 1.2 && Math.abs(other.position.z - car.position.z) < 12));
-        if (alternativeLane.length) {
-          const choice = alternativeLane[Math.floor(Math.random() * alternativeLane.length)];
-          car.userData.targetX = choice.lane;
-          car.userData.desiredLane = choice.idx;
+        const altLane = lanePositions.map((lane, idx) => ({ lane, idx })).filter(({ idx }) => idx !== preferredLane);
+        const available = altLane.filter(({ lane, idx }) => !trafficCars.some(other => other !== car && Math.abs(other.userData.targetX - lane) < 1.2 && Math.abs(other.position.z - car.position.z) < 14));
+        if (available.length > 0) {
+          const chosen = available[Math.floor(Math.random() * available.length)];
+          car.userData.targetX = chosen.lane;
+          car.userData.desiredLane = chosen.idx;
         }
-        car.position.z += 0.8 * (1 + Math.min(1.5, (20 - dist) / 20));
+        car.position.z += 0.9 * (1 + Math.min(1.5, (20 - dist) / 20));
       }
     }
   }
@@ -273,6 +286,7 @@
     if (!ambulance) return;
     const baseX = ambulance.position.x;
     const baseZ = ambulance.position.z;
+
     medics.forEach((medic, index) => {
       medic.visible = true;
       const phase = elapsed * 5 + index;
@@ -283,15 +297,13 @@
     });
 
     if (rescueState === 2) {
-      const targetX = playerCar.position.x;
-      const targetZ = playerCar.position.z + 1.8;
-      medics[0].position.lerp(new THREE.Vector3(targetX - 0.9, 0.9, targetZ), 0.08);
-      medics[1].position.lerp(new THREE.Vector3(targetX, 0.9, targetZ + 0.8), 0.08);
-      medics[2].position.lerp(new THREE.Vector3(targetX + 0.9, 0.9, targetZ + 0.2), 0.08);
+      medics[0].position.lerp(new THREE.Vector3(playerCar.position.x - 0.9, 0.9, playerCar.position.z + 1.3), 0.08);
+      medics[1].position.lerp(new THREE.Vector3(playerCar.position.x, 0.9, playerCar.position.z + 1.8), 0.08);
+      medics[2].position.lerp(new THREE.Vector3(playerCar.position.x + 0.9, 0.9, playerCar.position.z + 0.8), 0.08);
     }
 
     if (rescueState >= 3) {
-      const stretcherTarget = new THREE.Vector3(playerCar.position.x, 0.25, playerCar.position.z + 1.4);
+      const stretcherTarget = new THREE.Vector3(playerCar.position.x, 0.25, playerCar.position.z + 1.3);
       if (stretcher) {
         stretcher.visible = true;
         stretcher.position.lerp(stretcherTarget, 0.12);
@@ -409,12 +421,24 @@
       const p = sparkParticles[i]; p.userData.life -= delta; p.position.addScaledVector(p.userData.velocity, delta * 60); p.userData.velocity.y -= .025 * delta * 60;
       if (p.position.y <= 0 || p.userData.life <= 0) { scene.remove(p); sparkParticles.splice(i, 1); }
     }
+
+    for (let i = fogParticles.length - 1; i >= 0; i--) {
+      const cloud = fogParticles[i];
+      cloud.position.z += 0.6 * delta * 60;
+      cloud.position.x += Math.sin(elapsed + i) * 0.02;
+      if (cloud.position.z > 60) cloud.position.z = -200;
+    }
   }
 
   function animate(now) {
     animationId = requestAnimationFrame(animate);
     if (!renderer || isPaused || gameOver) { lastFrameTime = now; return; }
-    const delta = Math.min(Math.max((now - (lastFrameTime || now)) / 1000, 0), .05); lastFrameTime = now; const ratio = delta * 60; elapsed += delta;
+
+    const delta = Math.min(Math.max((now - (lastFrameTime || now)) / 1000, 0), .05);
+    lastFrameTime = now;
+    const ratio = delta * 60;
+    elapsed += delta;
+
     updateParticles(delta);
     updateTargetSpeed();
     updateOrientationIndicator();
@@ -434,9 +458,12 @@
       if (skyline) skyline.children.forEach(part => { part.position.z += speed * 10 * ratio; if (part.position.z > 90) part.position.z -= 1200; });
 
       for (const car of trafficCars) {
-        const desiredZ = car.position.z + (speed * 13 - .18) * ratio;
-        car.position.z = desiredZ;
+        car.position.z += (speed * 13 - .18) * ratio * car.userData.speedBias;
         car.position.x += (car.userData.targetX - car.position.x) * Math.min(.1 * ratio, 1);
+        car.rotation.z = -(car.userData.targetX - car.position.x) * .06;
+        car.userData.sway += 0.025 * ratio;
+        car.position.y = Math.sin(car.userData.sway) * 0.05;
+
         if (car.position.z > 30) respawnTrafficCar(car);
         if (Math.abs(playerCar.position.x - car.position.x) < 1.7 && Math.abs(playerCar.position.z - car.position.z) < 3.6) {
           triggerCrash();
@@ -453,7 +480,44 @@
       updateRescue(delta, ratio);
     }
 
+    if (ambulance) {
+      sirenPulse += delta * 12;
+      const hue = Math.sin(sirenPulse) > 0 ? 0xdc2626 : 0x2563eb;
+      ambulance.userData.lights[0].material.color.setHex(hue);
+      ambulance.userData.lights[1].material.color.setHex(hue === 0xdc2626 ? 0x111111 : 0x2563eb);
+    }
+
     renderer.render(scene, camera);
+  }
+
+  function createAmbulance() {
+    const amb = new THREE.Group();
+    const white = new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: .3 });
+    const red = new THREE.MeshBasicMaterial({ color: 0xdc2626 });
+    const blue = new THREE.MeshBasicMaterial({ color: 0x2563eb });
+    box(2.4, 2, 4.2, white, 0, 1.25, -.35, amb);
+    box(2.25, 1.25, 1.7, white, 0, 1.05, 2, amb);
+    const r = box(.55, .2, .25, red, -.5, 2.35, 1.7, amb);
+    const b = box(.55, .2, .25, blue, .5, 2.35, 1.7, amb);
+    amb.userData.lights = [r, b];
+    const wheelGeo = new THREE.CylinderGeometry(.35, .35, .3, 12);
+    for (const [x, z] of [[-1.2, 1.6], [1.2, 1.6], [-1.2, -1.5], [1.2, -1.5]]) {
+      const w = new THREE.Mesh(wheelGeo, mats.wheel); w.rotation.z = Math.PI / 2; w.position.set(x, .35, z); amb.add(w);
+    }
+    return amb;
+  }
+
+  function createHospital() {
+    const g = new THREE.Group();
+    const wall = new THREE.MeshStandardMaterial({ color: 0x0f172a });
+    const glass = new THREE.MeshPhysicalMaterial({ color: 0x38bdf8, roughness: .15, transparent: true, opacity: .85 });
+    box(30, 22, 16, wall, 0, 11, 0, g);
+    box(7, 4, .2, glass, -3.5, 2, 8.1, g);
+    box(7, 4, .2, glass, 3.5, 2, 8.1, g);
+    const sign = box(10, 1.5, .3, new THREE.MeshBasicMaterial({ color: 0x38bdf8 }), 0, 19, 8.2, g);
+    sign.material = sign.material;
+    g.position.set(0, 0, -180);
+    return g;
   }
 
   function onResize() {
@@ -480,11 +544,12 @@
     if (animationId) cancelAnimationFrame(animationId);
     for (const car of trafficCars) clearObject(car); trafficCars = [];
     for (const p of sparkParticles) clearObject(p); sparkParticles = [];
+    for (const cloud of fogParticles) clearObject(cloud); fogParticles = [];
     clearObject(playerCar); clearObject(ambulance); clearObject(hospitalBuilding);
     clearRescueActors();
     playerCar = null; ambulance = null; hospitalBuilding = null; playerDriver = null;
     $('game-over-ui').style.display = 'none'; $('pause-ui').style.display = 'none'; $('speed-lines').style.opacity = '0'; $('loading-message').style.display = 'none';
-    currentLane = 1; targetX = 0; speed = 0; score = 0; crashSpeedKmh = 0; rescueState = 0; rescueTimer = 0; isPaused = false; gameOver = false; elapsed = 0; targetSpeedKmh = BASE_TARGET_SPEED_KMH; currentMaxInternalSpeed = (BASE_TARGET_SPEED_KMH / 500) * 2.6;
+    currentLane = 1; targetX = 0; speed = 0; score = 0; crashSpeedKmh = 0; rescueState = 0; rescueTimer = 0; isPaused = false; gameOver = false; elapsed = 0; targetSpeedKmh = BASE_TARGET_SPEED_KMH; currentMaxInternalSpeed = (BASE_TARGET_SPEED_KMH / 500) * 2.6; sirenPulse = 0;
     $('speed').textContent = '0 KM/H'; $('score').textContent = '0';
     playerCar = createCar(0xef4444, true); scene.add(playerCar); createTraffic(5);
     lastFrameTime = performance.now(); animationId = requestAnimationFrame(animate);
@@ -516,17 +581,21 @@
       $('loading-message').textContent = 'Não foi possível carregar o Three.js. Verifique a conexão e recarregue.';
       return;
     }
+
     const container = $('canvas-container');
-    scene = new THREE.Scene(); scene.background = new THREE.Color(0x020617); scene.fog = new THREE.FogExp2(0x020617, .007);
+    scene = new THREE.Scene(); scene.background = new THREE.Color(0x020617); scene.fog = new THREE.Fog(0x020617, 18, 180);
     camera = new THREE.PerspectiveCamera(50, innerWidth / innerHeight, .1, 500);
     renderer = new THREE.WebGLRenderer({ antialias: !isTouchDevice, powerPreference: 'high-performance', precision: 'mediump' });
     renderer.setPixelRatio(Math.min(devicePixelRatio || 1, isTouchDevice ? 1.25 : 1.5)); renderer.setSize(innerWidth, innerHeight); renderer.shadowMap.enabled = !isTouchDevice; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     if ('ACESFilmicToneMapping' in THREE) { renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.1; }
     container.appendChild(renderer.domElement);
+
     scene.add(new THREE.AmbientLight(0x38bdf8, .55));
     const light = new THREE.DirectionalLight(0x93c5fd, 1.1); light.position.set(20, 40, 20); light.castShadow = !isTouchDevice; light.shadow.mapSize.set(512, 512); scene.add(light);
+
     makeMaterials(); buildEnvironment(); playerCar = createCar(0xef4444, true); scene.add(playerCar); createTraffic(5);
     updateOrientationIndicator();
+
     window.addEventListener('resize', onResize, { passive: true });
     window.addEventListener('orientationchange', () => { setTimeout(onResize, 120); }, { passive: true });
     window.addEventListener('keydown', handleKey);
@@ -535,6 +604,7 @@
     $('btn-restart').addEventListener('click', resetGame);
     $('btn-left').addEventListener('pointerdown', e => { e.preventDefault(); moveLane(-1); });
     $('btn-right').addEventListener('pointerdown', e => { e.preventDefault(); moveLane(1); });
+
     let startX = null, startY = null;
     renderer.domElement.addEventListener('pointerdown', e => { if (e.pointerType === 'touch') { startX = e.clientX; startY = e.clientY; } }, { passive: true });
     renderer.domElement.addEventListener('pointerup', e => {
@@ -543,6 +613,7 @@
       if (Math.abs(dx) > 24 && Math.abs(dx) > Math.abs(dy)) moveLane(dx > 0 ? 1 : -1);
       startX = null; startY = null;
     }, { passive: true });
+
     document.addEventListener('visibilitychange', () => { if (document.hidden && !isPaused && !gameOver && rescueState === 0) togglePause(); });
     $('loading-message').style.display = 'none'; onResize(); lastFrameTime = performance.now(); animationId = requestAnimationFrame(animate);
   }

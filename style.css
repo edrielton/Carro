@@ -2,8 +2,24 @@
 :root { color-scheme: dark; --neon: #38bdf8; --panel: rgba(15,23,42,.72); }
 * { box-sizing: border-box; -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
 html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background: #020617; font-family: 'Orbitron', sans-serif; touch-action: manipulation; }
-body { position: fixed; inset: 0; }
+body { position: fixed; inset: 0; background:
+  radial-gradient(circle at top, rgba(56,189,248,.18), transparent 34%),
+  radial-gradient(circle at bottom, rgba(168,85,247,.14), transparent 34%),
+  #020617;
+}
+body::before {
+  content: "";
+  position: absolute; inset: 0;
+  background: linear-gradient(180deg, rgba(15,23,42,.32), rgba(2,6,23,.72));
+  pointer-events: none;
+}
 #canvas-container { position: absolute; inset: 0; width: 100%; height: 100%; overflow: hidden; }
+#canvas-container::after {
+  content: "";
+  position: absolute; inset: 0;
+  background: linear-gradient(135deg, rgba(56,189,248,.08), transparent 35%, rgba(168,85,247,.08));
+  pointer-events: none;
+}
 #canvas-container canvas { display: block; width: 100%; height: 100%; }
 #hud { position: absolute; top: max(18px, env(safe-area-inset-top)); left: max(18px, env(safe-area-inset-left)); z-index: 10; display: flex; flex-direction: column; gap: 11px; min-width: 205px; padding: 14px 16px; border: 1px solid rgba(148,163,184,.28); border-radius: 14px; background: rgba(15,23,42,.55); backdrop-filter: blur(8px); box-shadow: 0 0 18px rgba(15,23,42,.45); }
 #hud div, .orientation-indicator { color: #94a3b8; font-size: 12px; letter-spacing: 1.2px; text-transform: uppercase; }
