@@ -48,7 +48,16 @@ body::before {
   padding: 10px 12px; border: 1px solid rgba(125, 211, 252, 0.22);
   border-radius: 16px; background: rgba(15, 23, 42, 0.52);
   backdrop-filter: blur(10px); box-shadow: 0 14px 28px rgba(2, 6, 23, 0.22), inset 0 1px 0 rgba(255,255,255,0.06);
-  transition: opacity 0.25s ease, transform 0.25s ease;
+  transition: opacity 0.25s ease, transform 0.25s ease, visibility 0.25s ease;
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
+}
+#hud.hidden {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translateY(-8px);
 }
 
 .hud-row {
