@@ -30,8 +30,9 @@
   ];
 
   let scene, camera, renderer, playerCar, playerDriver, roadLines, skyline, ambientLight, sunLight;
-  let trafficCars = [], streetLights = [], sparkParticles = [], fogParticles = [], rainParticles = [];
+  let trafficCars = [], streetLights = [], sparkParticles = [], fogParticles = [], rainParticles = []; 
   let ambulance = null, hospitalBuilding = null, rescueTimer = 0;
+  let medics = [], stretcher = null, patient = null, sirenPulse = 0;
   let currentLane = 1, targetX = 0, speed = 0, score = 0, crashSpeedKmh = 0, credits = 0;
   let isPaused = false, gameOver = false, rescueState = 0;
   let lastFrameTime = 0, elapsed = 0, audioCtx = null, animationId = 0;
@@ -438,7 +439,8 @@
 
   function spawnRescueActors() {
     const medicsList = [createMedic(0x22c55e), createMedic(0x38bdf8), createMedic(0xf59e0b)];
-    medicsList.forEach((medic) => scene.add(medic));
+    medics = medicsList;
+    medics.forEach((medic) => scene.add(medic));
     const stretcherRef = createStretcher(); const patientRef = createPatient();
     scene.add(stretcherRef); scene.add(patientRef);
     stretcher = stretcherRef; patient = patientRef;
@@ -455,16 +457,6 @@
     if (patient) { scene.remove(patient); patient = null; }
   }
 
-  function chooseTrafficLaneForCar(car, preferredLaneIndex) {
-    const choices = lanePositions.map((lane, idx) => ({ lane, idx })).filter(({ idx }) => idx !== preferredLaneIndex);
-    const valid = choices.filter(({ lane, idx }) => !trafficCars.some(other => other !== car && Math.abs(other.userData.targetX - lane) < 1.2 && Math.abs(other.position.z - car.position.z) < 12));
-    if (!valid.length) return false;
-    const choice = valid[Math.floor(Math.random() * valid.length)];
-    car.userData.targetX = choice.lane;
-    car.userData.desiredLane = choice.idx;
-    return true;
-  }
-
   function updateAmbulanceTrafficBehavior() {
     if (!ambulance) return;
     for (const car of trafficCars) {
@@ -472,7 +464,7 @@
       if (dist > 0 && dist < 20 && Math.abs(car.position.x - ambulance.position.x) < 2.8) {
         const preferredLane = lanePositions.indexOf(car.userData.targetX);
         const altLane = lanePositions.map((lane, idx) => ({ lane, idx })).filter(({ idx }) => idx !== preferredLane);
-        const available = altLane.filter(({ lane, idx }) => !trafficCars.some(other => other !== car && Math.abs(other.userData.targetX - lane) < 1.2 && Math.abs(other.position.z - car.position.z) < 12));
+        const available = altLane.filter(({ lane }) => !trafficCars.some(other => other !== car && Math.abs(other.userData.targetX - lane) < 1.2 && Math.abs(other.position.z - car.position.z) < 12));
         if (available.length > 0) {
           const chosen = available[Math.floor(Math.random() * available.length)];
           car.userData.targetX = chosen.lane;
@@ -659,6 +651,15 @@
     }
   }
 
+  function startGame() {
+    $('start-ui').style.display = 'none';
+    $('pause-ui').style.display = 'none';
+    isPaused = false;
+    gameOver = false;
+    if (!playerCar) return;
+    lastFrameTime = performance.now();
+  }
+
   function animate(now) {
     animationId = requestAnimationFrame(animate);
     if (!renderer || isPaused || gameOver) { lastFrameTime = now; return; }
@@ -758,8 +759,7 @@
     box(30, 22, 16, wall, 0, 11, 0, g);
     box(7, 4, 0.2, glass, -3.5, 2, 8.1, g);
     box(7, 4, 0.2, glass, 3.5, 2, 8.1, g);
-    const sign = box(10, 1.5, 0.3, new THREE.MeshBasicMaterial({ color: 0x38bdf8 }), 0, 19, 8.2, g);
-    sign.material = sign.material;
+    box(10, 1.5, 0.3, new THREE.MeshBasicMaterial({ color: 0x38bdf8 }), 0, 19, 8.2, g);
     g.position.set(0, 0, -180);
     return g;
   }
@@ -920,6 +920,7 @@
     window.addEventListener('resize', onResize, { passive: true });
     window.addEventListener('orientationchange', () => { setTimeout(onResize, 120); }, { passive: true });
     window.addEventListener('keydown', handleKey);
+    $('btn-start').addEventListener('click', startGame);
     $('btn-pause').addEventListener('click', togglePause);
     $('btn-resume').addEventListener('click', togglePause);
     $('btn-restart').addEventListener('click', resetGame);
